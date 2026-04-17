@@ -15,10 +15,21 @@ router.get('/', auth(), async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
 
     const [rows] = await db.query(
-      `SELECT id, full_name, avatar_url, points, role, about, created_at
-       FROM profiles
-       WHERE role = 'student' AND is_banned = 0
-       ORDER BY points DESC
+      `SELECT p.id, p.full_name, p.avatar_url, p.role, p.about, p.created_at,
+              (
+                (SELECT COUNT(*) FROM notes n WHERE n.uploader_id = p.id) * 10
+                +
+                (SELECT COALESCE(SUM(downloads), 0) FROM notes n WHERE n.uploader_id = p.id) * 2
+                +
+                (SELECT COUNT(*) FROM note_ratings nr JOIN notes n ON nr.note_id = n.id WHERE n.uploader_id = p.id AND nr.rating >= 4 AND nr.user_id != p.id) * 5
+                +
+                (SELECT COALESCE(SUM(points), 0) FROM leaderboard_points lp WHERE lp.user_id = p.id AND lp.reason = 'admin_bonus')
+                -
+                (SELECT COALESCE(SUM(ABS(points)), 0) FROM leaderboard_points lp WHERE lp.user_id = p.id AND lp.reason = 'penalty')
+              ) AS dynamic_points
+       FROM profiles p
+       WHERE p.role = 'student' AND p.is_banned = 0
+       ORDER BY dynamic_points DESC
        LIMIT ?`,
       [limit]
     );
@@ -34,11 +45,11 @@ router.get('/', auth(), async (req, res) => {
       id: row.id,
       name: row.full_name || 'Unknown',
       avatar: row.avatar_url,
-      score: row.points || 0,
-      points: row.points || 0,
+      score: row.dynamic_points || 0,
+      points: row.dynamic_points || 0,
       role: row.role,
       about: row.about || '',
-      tier: getTier(row.points || 0),
+      tier: getTier(row.dynamic_points || 0),
       rank: i + 1,
       uploads: 0,
       downloads: 0,

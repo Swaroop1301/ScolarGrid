@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from '../lib/apiClient';
+import { apiGet, apiPost, apiDelete } from '../lib/apiClient';
 
 /**
  * Fetch messages for a group, ordered by time.
@@ -12,6 +12,13 @@ export async function fetchMessages(groupId, limit = 100) {
  */
 export async function sendMessage(groupId, senderId, content) {
   return apiPost(`/api/messages/${groupId}`, { content });
+}
+
+/**
+ * Delete a message (admin/faculty).
+ */
+export async function deleteMessage(messageId) {
+  return apiDelete(`/api/messages/delete/${messageId}`);
 }
 
 /**

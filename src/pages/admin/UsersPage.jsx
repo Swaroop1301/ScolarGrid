@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { fetchAllUsers, warnUser, banUser, changeUserRole, fetchFacultyCodes, generateFacultyCode, deleteFacultyCode } from '../../services/usersService';
 import { awardPoints } from '../../services/leaderboardService';
-import { Search, Ban, AlertTriangle, Key, Shield, User, Plus, Trash2, ChevronDown, Award } from 'lucide-react';
+import { fetchAllGroups, addUserToGroup } from '../../services/groupsService';
+import { Search, Ban, AlertTriangle, Key, Shield, User, Plus, Trash2, ChevronDown, Award, Users, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
@@ -15,16 +14,23 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('users');
+  const [groups, setGroups] = useState([]);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState('');
+  const [addingToGroup, setAddingToGroup] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [usersData, codesData] = await Promise.all([
+      const [usersData, codesData, groupsData] = await Promise.all([
         fetchAllUsers(),
-        isSuperAdmin ? fetchFacultyCodes() : Promise.resolve([])
+        isSuperAdmin ? fetchFacultyCodes() : Promise.resolve([]),
+        fetchAllGroups()
       ]);
       setUsers(usersData);
       if (isSuperAdmin) setCodes(codesData);
+      setGroups(groupsData);
     } catch (err) {
       console.error('Error loading data:', err);
     } finally {
@@ -108,6 +114,22 @@ export default function UsersPage() {
     } catch (err) {
       console.error('Update points error:', err);
       alert('Failed to update points: ' + err.message);
+    }
+  };
+
+  const handleAddToGroup = async () => {
+    if (!selectedUser || !selectedGroup) return;
+    setAddingToGroup(true);
+    try {
+      await addUserToGroup(selectedGroup, selectedUser.id);
+      alert(`Successfully added ${selectedUser.name} to the group!`);
+      setShowGroupModal(false);
+      setSelectedGroup('');
+    } catch (err) {
+      console.error('Add to group error:', err);
+      alert('Failed to add user to group: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setAddingToGroup(false);
     }
   };
 
@@ -200,6 +222,7 @@ export default function UsersPage() {
                   <span className={`badge text-xs ${u.status === 'Active' ? 'badge-green' : u.status === 'Warned' ? 'badge-gold' : 'badge-red'}`}>{u.status}</span>
                 </span>
                 <div className="col-span-2 flex items-center justify-end gap-1">
+                  <button onClick={() => { setSelectedUser(u); setShowGroupModal(true); }} className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/10 text-gray-400 hover:text-emerald-500" title="Add to Group"><Plus className="w-4 h-4" /></button>
                   <button onClick={() => handleUpdatePoints(u.id, u.score)} className="p-1.5 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/10 text-gray-400 hover:text-brand-500" title="Award Points"><Award className="w-4 h-4" /></button>
                   <button onClick={() => handleWarn(u.id)} className="p-1.5 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/10 text-gray-400 hover:text-orange-500" title="Warn"><AlertTriangle className="w-4 h-4" /></button>
                   <button onClick={() => handleToggleBan(u.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10 text-gray-400 hover:text-red-500" title={u.status === 'Banned' ? 'Unban' : 'Ban'}><Ban className="w-4 h-4" /></button>
@@ -245,6 +268,50 @@ export default function UsersPage() {
             </div>
           ))}
         </motion.div>
+      )}
+      {/* Group Assignment Modal */}
+      {showGroupModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowGroupModal(false)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="bg-light-surface dark:bg-dark-card rounded-2xl border border-light-border dark:border-dark-border w-full max-w-md p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-serif font-bold text-gray-900 dark:text-white">Add to Group</h2>
+              <button onClick={() => setShowGroupModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover"><X className="w-5 h-5 text-gray-500" /></button>
+            </div>
+            <div className="space-y-4">
+              <div className="p-3 bg-gray-50 dark:bg-dark-bg rounded-xl">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedUser?.name}</p>
+                <p className="text-xs text-gray-400">{selectedUser?.email}</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Select Group</label>
+                <select
+                  value={selectedGroup}
+                  onChange={(e) => setSelectedGroup(e.target.value)}
+                  className="input-field"
+                >
+                  <option value="">Choose a group...</option>
+                  {groups.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setShowGroupModal(false)} className="btn-secondary flex-1">Cancel</button>
+                <button
+                  onClick={handleAddToGroup}
+                  disabled={addingToGroup || !selectedGroup}
+                  className="btn-primary flex-1"
+                >
+                  {addingToGroup ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       )}
     </motion.div>
   );

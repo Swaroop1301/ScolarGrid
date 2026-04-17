@@ -22,7 +22,7 @@ export default function StudentDashboard() {
   const loadData = async () => {
     try {
       const [notes, lb] = await Promise.all([
-        fetchNotes({ sortBy: 'downloads', limit: 4 }),
+        fetchNotes({ sortBy: 'rating', limit: 4 }),
         fetchLeaderboard(10),
       ]);
       setTrendingNotes(notes);
@@ -59,7 +59,7 @@ export default function StudentDashboard() {
       {/* Welcome Banner */}
       <motion.div variants={item} className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-600 via-brand-700 to-brand-900 p-6 lg:p-8">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
-        <div className="absolute bottom-0 right-1/4 w-32 h-32 bg-gold-400/10 rounded-full translate-y-1/2" />
+        <div className="absolute bottom-0 right-1/4 w-32 h-32 bg-brand-400/10 rounded-full translate-y-1/2" />
         <div className="relative z-10">
           <p className="text-brand-200 text-sm font-medium mb-1">Welcome back,</p>
           <h1 className="text-2xl lg:text-3xl font-serif font-bold text-white mb-2">{user?.name || 'Scholar'} ✨</h1>

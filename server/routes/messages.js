@@ -98,6 +98,34 @@ router.post('/:groupId/file', auth(), (req, res, next) => {
   }
 });
 
+// DELETE /api/messages/delete/:id — moderate message (admin/faculty)
+router.delete('/delete/:id', auth(), async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const { id } = req.params;
+
+    // Only faculty and superadmin can delete any message
+    if (!['superadmin', 'faculty'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Only faculty/admin can delete messages' });
+    }
+
+    const [rows] = await db.query('SELECT group_id FROM messages WHERE id = ?', [id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Message not found' });
+    
+    const groupId = rows[0].group_id;
+
+    await db.query('DELETE FROM messages WHERE id = ?', [id]);
+
+    // Broadcast deletion
+    req.app.locals.broadcastToRoom(groupId, { type: 'message_deleted', payload: { messageId: id } });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete message error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 function mapMessage(row) {
   return {
     id: row.id,

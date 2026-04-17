@@ -124,6 +124,46 @@ router.post('/join', auth(), async (req, res) => {
   }
 });
 
+// POST /api/groups/:id/members — add member (admin/faculty)
+router.post('/:id/members', auth(), roles(['superadmin', 'faculty']), async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const { userId } = req.body;
+    const { id } = req.params;
+
+    const [existing] = await db.query(
+      'SELECT group_id FROM group_members WHERE group_id = ? AND user_id = ?',
+      [id, userId]
+    );
+    if (existing.length > 0) return res.status(409).json({ error: 'Already a member' });
+
+    await db.query(
+      'INSERT INTO group_members (group_id, user_id) VALUES (?, ?)',
+      [id, userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Add member error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/groups/:id/members/:userId — remove member (admin/faculty)
+router.delete('/:id/members/:userId', auth(), roles(['superadmin', 'faculty']), async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const { id, userId } = req.params;
+    await db.query(
+      'DELETE FROM group_members WHERE group_id = ? AND user_id = ?',
+      [id, userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Remove member error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 function generateJoinCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const prefixes = ['GRP', 'STD', 'DSC'];

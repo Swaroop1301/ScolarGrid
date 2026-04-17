@@ -24,7 +24,7 @@ export default function AdminDashboard() {
       const [a, c, lb] = await Promise.all([
         fetchAnalytics(),
         fetchComplaints(null, true),
-        fetchLeaderboard(5),
+        fetchLeaderboard(10),
       ]);
       setAnalytics(a);
       setComplaints(c);
@@ -57,7 +57,10 @@ export default function AdminDashboard() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item}><h1 className="page-title">Admin Dashboard</h1><p className="page-subtitle">System overview and management</p></motion.div>
+      <motion.div variants={item}>
+        <h1 className="page-title">Management Dashboard</h1>
+        <p className="page-subtitle">Overview of platform activity and administrative tasks</p>
+      </motion.div>
 
       {/* Stats */}
       <motion.div variants={item} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -129,7 +132,7 @@ export default function AdminDashboard() {
                   <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{c.title}</p>
                   <p className="text-xs text-gray-400">{c.userName}</p>
                 </div>
-                <span className={`badge text-xs ${c.status === 'Open' ? 'badge-blue' : 'badge-gold'}`}>{c.status}</span>
+                <span className={`badge text-xs ${c.status === 'Open' ? 'badge-blue' : 'badge-purple'}`}>{c.status}</span>
               </div>
             ))}
             {complaints.filter(c => c.status !== 'Resolved').length === 0 && (

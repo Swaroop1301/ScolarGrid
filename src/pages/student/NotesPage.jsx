@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
-import { fetchNotes, fetchSubjects, uploadNote, rateNote } from '../../services/notesService';
+import { fetchNotes, fetchSubjects, uploadNote, rateNote, downloadNote, fetchNoteReviews } from '../../services/notesService';
 import { FileText, Download, Star, Search, Filter, Grid3X3, List, Upload, X, Tag, Clock, User, ChevronDown } from 'lucide-react';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
@@ -17,11 +17,15 @@ export default function NotesPage() {
   const [subject, setSubject] = useState('All');
   const [viewMode, setViewMode] = useState('grid');
   const [showUpload, setShowUpload] = useState(false);
-  const [sortBy, setSortBy] = useState('recent');
+  const [sortBy, setSortBy] = useState('rating');
   const [uploadForm, setUploadForm] = useState({ title: '', description: '', subject: '', tags: '' });
   const [uploadFile, setUploadFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [showReviews, setShowReviews] = useState(false);
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
 
   useEffect(() => {
     loadNotes();
@@ -104,6 +108,30 @@ export default function NotesPage() {
     }
   };
 
+  const handleDownload = async (note) => {
+    try {
+      await downloadNote(note.id, note.fileName);
+      setNotes(notes.map(n => n.id === note.id ? { ...n, downloads: n.downloads + 1 } : n));
+    } catch (err) {
+      console.error('Download error:', err);
+      alert('Failed to download note.');
+    }
+  };
+
+  const handleViewReviews = async (note) => {
+    setSelectedNote(note);
+    setShowReviews(true);
+    setLoadingReviews(true);
+    try {
+      const data = await fetchNoteReviews(note.id);
+      setReviews(data);
+    } catch (err) {
+      console.error('Error fetching reviews:', err);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
   const renderStars = (rating) => (
     <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map(i => (
@@ -142,6 +170,7 @@ export default function NotesPage() {
           </div>
           <div className="relative">
             <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="input-field pr-10 appearance-none cursor-pointer min-w-[130px]">
+              <option value="rating">Top Rated</option>
               <option value="recent">Most Recent</option>
               <option value="downloads">Most Downloaded</option>
             </select>
@@ -197,11 +226,13 @@ export default function NotesPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500">{note.subject}</span>
                   <div className="flex items-center gap-3">
-                    <button onClick={() => handleRate(note.id)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gold-500 transition-colors" title="Rate this note">
+                    <button onClick={() => handleViewReviews(note)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gold-500 transition-colors" title="View reviews">
                       {renderStars(note.rating)}
                     </button>
                     <div className="flex items-center gap-1 text-xs text-gray-400">
-                      <Download className="w-3 h-3" /> {note.downloads}
+                      <button onClick={() => handleDownload(note)} className="hover:text-brand-500 flex items-center gap-1">
+                        <Download className="w-3 h-3" /> {note.downloads}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -238,11 +269,11 @@ export default function NotesPage() {
                 </div>
               </div>
               <div className="hidden sm:flex items-center gap-4 flex-shrink-0">
-                <button onClick={() => handleRate(note.id)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gold-500 transition-colors" title="Rate this note">
+                <button onClick={() => handleViewReviews(note)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gold-500 transition-colors" title="View reviews">
                   {renderStars(note.rating)}
                 </button>
                 <div className="flex items-center gap-1 text-sm text-gray-500"><Download className="w-4 h-4" /> {note.downloads}</div>
-                <button className="btn-secondary text-sm py-1.5 px-3">Download</button>
+                <button onClick={() => handleDownload(note)} className="btn-secondary text-sm py-1.5 px-3">Download</button>
               </div>
             </motion.div>
           ))}
@@ -299,6 +330,61 @@ export default function NotesPage() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Reviews Modal */}
+      <AnimatePresence>
+        {showReviews && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowReviews(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-light-surface dark:bg-dark-card rounded-2xl border border-light-border dark:border-dark-border w-full max-w-lg p-6 shadow-glass-dark"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-serif font-bold text-gray-900 dark:text-white">Reviews</h2>
+                  <p className="text-sm text-gray-500">{selectedNote?.title}</p>
+                </div>
+                <button onClick={() => setShowReviews(false)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover"><X className="w-5 h-5 text-gray-500" /></button>
+              </div>
+
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                {loadingReviews ? (
+                  <div className="space-y-3">
+                    {[1,2].map(i => <div key={i} className="h-20 rounded-xl bg-gray-100 dark:bg-dark-surface animate-pulse" />)}
+                  </div>
+                ) : reviews.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-gray-500">No reviews yet.</p>
+                  </div>
+                ) : (
+                  reviews.map(r => (
+                    <div key={r.id} className="p-4 rounded-xl bg-gray-50 dark:bg-dark-surface border border-gray-100 dark:border-dark-border/50">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-gradient-premium flex items-center justify-center text-white text-[10px] font-bold">
+                            {r.user_name?.charAt(0)}
+                          </div>
+                          <span className="text-xs font-semibold text-gray-900 dark:text-white">{r.user_name}</span>
+                        </div>
+                        {renderStars(r.rating)}
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 italic">"{r.review || 'No comment provided'}"</p>
+                      <p className="text-[10px] text-gray-400 mt-2">{new Date(r.created_at).toLocaleDateString()}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-gray-100 dark:border-dark-border/50">
+                <button onClick={() => { setShowReviews(false); handleRate(selectedNote.id); }} className="btn-primary w-full flex items-center justify-center gap-2">
+                  <Star className="w-4 h-4" /> Write a Review
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

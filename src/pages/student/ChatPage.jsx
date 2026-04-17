@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { fetchUserGroups, joinGroup } from '../../services/groupsService';
-import { fetchMessages, sendMessage, subscribeToMessages } from '../../services/messagesService';
+import { fetchMessages, sendMessage, subscribeToMessages, deleteMessage } from '../../services/messagesService';
 
-import { Search, Send, Paperclip, Hash, Users, Clock, Plus, X, Copy, Check, File } from 'lucide-react';
+import { Search, Send, Paperclip, Hash, Users, Clock, Plus, X, Copy, Check, File, Trash2 } from 'lucide-react';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 
@@ -49,12 +49,16 @@ export default function ChatPage() {
     if (channelRef.current) {
       channelRef.current.close();
     }
-    channelRef.current = subscribeToMessages(selectedGroup.id, (newMsg) => {
-      setMessages(prev => {
-        // Avoid duplicates
-        if (prev.find(m => m.id === newMsg.id)) return prev;
-        return [...prev, newMsg];
-      });
+    channelRef.current = subscribeToMessages(selectedGroup.id, (payload) => {
+      if (payload.type === 'message_deleted') {
+        setMessages(prev => prev.filter(m => m.id !== payload.payload.messageId));
+      } else {
+        const newMsg = payload;
+        setMessages(prev => {
+          if (prev.find(m => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
+      }
     });
 
     return () => {
@@ -110,6 +114,17 @@ export default function ChatPage() {
       setJoinError(err.message);
     } finally {
       setJoining(false);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    if (!confirm('Delete this message for everyone?')) return;
+    try {
+      await deleteMessage(messageId);
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+    } catch (err) {
+      console.error('Error deleting message:', err);
+      alert('Failed to delete message');
     }
   };
 
@@ -233,6 +248,11 @@ export default function ChatPage() {
                       </div>
                       <p className={`text-xs text-gray-400 mt-1 ${isOwn ? 'text-right mr-1' : 'ml-1'}`}>
                         {formatTime(msg.timestamp)}
+                        {['superadmin', 'faculty'].includes(user?.role) && (
+                          <button onClick={() => handleDeleteMessage(msg.id)} className="ml-2 text-red-400 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-3 h-3 inline" />
+                          </button>
+                        )}
                       </p>
                     </div>
                   </div>

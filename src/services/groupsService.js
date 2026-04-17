@@ -44,3 +44,17 @@ export async function fetchGroupMemberCount(groupId) {
   const group = groups.find(g => g.id === groupId);
   return group?.members || 0;
 }
+
+/**
+ * Add user to a group (admin/faculty).
+ */
+export async function addUserToGroup(groupId, userId) {
+  return apiPost(`/api/groups/${groupId}/members`, { userId });
+}
+
+/**
+ * Remove user from a group (admin/faculty).
+ */
+export async function removeUserFromGroup(groupId, userId) {
+  return apiDelete(`/api/groups/${groupId}/members/${userId}`);
+}

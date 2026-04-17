@@ -61,3 +61,32 @@ export async function approveNote(noteId, approved) {
 export async function rateNote(noteId, rating, review) {
   return apiPost(`/api/notes/${noteId}/rate`, { rating, review });
 }
+
+/**
+ * Fetch reviews for a note.
+ */
+export async function fetchNoteReviews(noteId) {
+  return apiGet(`/api/notes/${noteId}/reviews`);
+}
+
+/**
+ * Download a note and trigger browser download.
+ */
+export async function downloadNote(noteId, fileName) {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`http://localhost:3001/api/notes/${noteId}/download`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  
+  if (!res.ok) throw new Error('Download failed');
+  
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName || 'download';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
